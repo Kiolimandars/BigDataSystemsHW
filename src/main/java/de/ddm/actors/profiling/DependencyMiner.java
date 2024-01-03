@@ -174,7 +174,6 @@ public class DependencyMiner extends AbstractBehavior<DependencyMiner.Message> {
 		// If this was a reasonable result, I would probably do something with it and potentially generate more work ... for now, let's just generate a random, binary IND.
 
 		if (this.headerLines[0] != null) {
-			getContext().getLog().info(Arrays.toString(this.headerLines[1]));
 
 
 		}
