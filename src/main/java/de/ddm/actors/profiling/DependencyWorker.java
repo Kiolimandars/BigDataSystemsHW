@@ -13,8 +13,11 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.Random;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
+import java.util.HashSet;
 
 public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message> {
 
@@ -39,7 +42,12 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 	public static class TaskMessage implements Message {
 		private static final long serialVersionUID = -4667745204456518160L;
 		ActorRef<LargeMessageProxy.Message> dependencyMinerLargeMessageProxy;
-		int task;
+		Set<String> sourceFile;
+		Set<String> targetFile;
+		int sourceFileIndex;
+		int targetFileIndex;
+		int sourceColumnIndex;
+		int targetColumnIndex;
 	}
 
 	////////////////////////
@@ -87,13 +95,39 @@ public class DependencyWorker extends AbstractBehavior<DependencyWorker.Message>
 	}
 
 	private Behavior<Message> handle(TaskMessage message) {
-		// I should probably know how to solve this task, but for now I just pretend some work...
-		int result = message.getTask();
-		this.getContext().getLog().info("This is dependency worker");
+		Set<String> sourceFile = message.getSourceFile();
+		Set<String> targetFile = message.getTargetFile();
+		int sourceFileIndex = message.getSourceFileIndex();
+		int sourceColumnIndex = message.getSourceColumnIndex();
+		int targetFileIndex = message.getTargetFileIndex();
+		int targetColumnIndex = message.getTargetColumnIndex();
 
-		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(), result);
+		Integer result = -1;
+
+		this.getContext().getLog().info("Working from file " + sourceFileIndex + " to file " + targetFileIndex);
+		this.getContext().getLog().info("column " + sourceColumnIndex + " | column " + targetColumnIndex);
+
+		if (sourceFileIndex != targetFileIndex || sourceColumnIndex != targetColumnIndex) {
+			if (isSubset(sourceFile, targetFile)) {
+				// Append the index of the targetColumn to signalize that sourceColumn has an IND to targetColumn
+				result = targetColumnIndex;
+			}
+		}
+
+		LargeMessageProxy.LargeMessage completionMessage = new DependencyMiner.CompletionMessage(this.getContext().getSelf(),result, sourceFileIndex, targetFileIndex, sourceColumnIndex, targetColumnIndex);
 		this.largeMessageProxy.tell(new LargeMessageProxy.SendMessage(completionMessage, message.getDependencyMinerLargeMessageProxy()));
 
 		return this;
 	}
+
+	public static boolean isSubset(Set<String> list1, Set<String> list2) {
+		for (String element : list1) {
+			if (!list2.contains(element)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 }

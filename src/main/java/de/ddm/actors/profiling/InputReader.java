@@ -1,7 +1,7 @@
+
 package de.ddm.actors.profiling;
 
 import akka.actor.typed.ActorRef;
-import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.PostStop;
 import akka.actor.typed.javadsl.AbstractBehavior;
@@ -19,8 +19,12 @@ import lombok.NoArgsConstructor;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 public class InputReader extends AbstractBehavior<InputReader.Message> {
 
@@ -54,7 +58,6 @@ public class InputReader extends AbstractBehavior<InputReader.Message> {
 	public static final String DEFAULT_NAME = "inputReader";
 
 	public static Behavior<Message> create(final int id, final File inputFile) {
-
 		return Behaviors.setup(context -> new InputReader(context, id, inputFile));
 	}
 
@@ -73,7 +76,7 @@ public class InputReader extends AbstractBehavior<InputReader.Message> {
 	/////////////////
 
 	private final int id;
-	private static final int batchSize = DomainConfigurationSingleton.get().getInputReaderBatchSize();
+	private final int batchSize = DomainConfigurationSingleton.get().getInputReaderBatchSize();
 	private final CSVReader reader;
 	private final String[] header;
 
@@ -91,35 +94,49 @@ public class InputReader extends AbstractBehavior<InputReader.Message> {
 	}
 
 	private Behavior<Message> handle(ReadHeaderMessage message) {
-
 		message.getReplyTo().tell(new DependencyMiner.HeaderMessage(this.id, this.header));
-
 		return this;
 	}
 
 	private Behavior<Message> handle(ReadBatchMessage message) throws IOException, CsvValidationException {
-
 		List<String[]> batch = new ArrayList<>(this.batchSize);
+		List<Set<String>> batchSet = new ArrayList<>(this.batchSize);
 
 		for (int i = 0; i < this.batchSize; i++) {
 			String[] line = this.reader.readNext();
-			if (line == null){
-				getContext().getLog().info("NEW DATASET");
-
-			break;}
+			if (line == null) {
+				break;
+			}
 			batch.add(line);
 		}
 
-		message.getReplyTo().tell(new DependencyMiner.BatchMessage(this.id, batch));
+		if (batch.size() > 0)
+			batchSet = transposeAndConvert(batch);
+
+		message.getReplyTo().tell(new DependencyMiner.BatchMessage(this.id, batchSet));
 		return this;
 	}
 
-	private Behavior<Message> handle(PostStop signal) throws IOException {
-		getContext().getLog().info("Received PostStop signal in InputReader");
 
+	private Behavior<Message> handle(PostStop signal) throws IOException {
 		this.reader.close();
 		return this;
 	}
 
+	private List<Set<String>> transposeAndConvert(List<String[]> matrix) {
+		List<Set<String>> result = new ArrayList<>();
 
+		int numRows = matrix.size();
+		int numCols = matrix.get(0).length;
+
+		for (int j = 0; j < numCols; j++) {
+			Set<String> setRow = new HashSet<>();
+			for (int i = 0; i < numRows; i++) {
+				setRow.add(matrix.get(i)[j]);
+			}
+			result.add(setRow);
+		}
+
+		return result;
+	}
 }
